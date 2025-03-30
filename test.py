@@ -4,6 +4,9 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
+import random
+import math
+
 
 class GeneradorNumerosAleatorios:
     def __init__(self, root):
@@ -129,10 +132,7 @@ class GeneradorNumerosAleatorios:
     
     def generar_numeros(self):
         try:
-            # Obtener tamaño de muestra
             n = min(int(self.tamano_muestra.get()), 1000000)
-            
-            # Generar números según la distribución seleccionada
             distribucion = self.distribucion_actual.get()
             
             if distribucion == "uniforme":
@@ -140,18 +140,14 @@ class GeneradorNumerosAleatorios:
                 b = float(self.param_b.get())
                 if a >= b:
                     raise ValueError("El valor de 'a' debe ser menor que 'b'")
-                # Generamos números en el rango [a, b)
-                # Usamos > a y <= b para garantizar que respetamos los intervalos semi-abiertos
-                self.numeros_generados = np.random.uniform(a, b, n)
-                # Para asegurar que no hay valores exactamente iguales a b
-                self.numeros_generados = np.where(self.numeros_generados == b, a, self.numeros_generados)
+                self.numeros_generados = self.uniforme(a, b, n)
                 titulo = f"Distribución Uniforme [{a}, {b})"
             
             elif distribucion == "exponencial":
                 lambda_val = float(self.param_lambda.get())
                 if lambda_val <= 0:
                     raise ValueError("Lambda debe ser mayor que 0")
-                self.numeros_generados = np.random.exponential(1/lambda_val, n)
+                self.numeros_generados = self.exponencial(lambda_val, n)
                 titulo = f"Distribución Exponencial [λ={lambda_val}]"
             
             elif distribucion == "normal":
@@ -159,13 +155,11 @@ class GeneradorNumerosAleatorios:
                 sigma = float(self.param_sigma.get())
                 if sigma <= 0:
                     raise ValueError("Sigma debe ser mayor que 0")
-                self.numeros_generados = np.random.normal(mu, sigma, n)
+                self.numeros_generados = self.normal_box_muller(mu, sigma, n)
                 titulo = f"Distribución Normal [μ={mu}, σ={sigma}]"
             
-            # Redondear a 4 dígitos decimales
             self.numeros_generados = np.round(self.numeros_generados, 4)
             
-            # Mostrar los primeros 100 números generados
             self.numeros_text.delete(1.0, tk.END)
             numeros_mostrar = self.numeros_generados[:100]
             texto_numeros = ", ".join([str(num) for num in numeros_mostrar])
@@ -173,7 +167,6 @@ class GeneradorNumerosAleatorios:
                 texto_numeros += "... (y " + str(n - 100) + " más)"
             self.numeros_text.insert(tk.END, texto_numeros)
             
-            # Generar histograma
             self.generar_histograma(titulo, distribucion, a if distribucion == "uniforme" else None, 
                                    b if distribucion == "uniforme" else None)
             
@@ -181,6 +174,26 @@ class GeneradorNumerosAleatorios:
             messagebox.showerror("Error", str(e))
         except Exception as e:
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
+
+    def uniforme(self, a, b, n):
+        return [a + (b - a) * random.random() for _ in range(n)]
+
+    def exponencial(self, lambda_val, n):
+        return [-(1 / lambda_val) * math.log(1 - random.random()) for _ in range(n)]
+
+    def normal_box_muller(self, mu, sigma, n):
+        numeros = []
+        for _ in range(n // 2):
+            u1, u2 = random.random(), random.random()
+            z1 = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+            z2 = math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.pi * u2)
+            numeros.append(mu + sigma * z1)
+            numeros.append(mu + sigma * z2)
+        if len(numeros) < n:
+            u1, u2 = random.random(), random.random()
+            z1 = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+            numeros.append(mu + sigma * z1)
+        return numeros
     
     def generar_histograma(self, titulo, distribucion, a=None, b=None):
         # Limpiar gráfico anterior
